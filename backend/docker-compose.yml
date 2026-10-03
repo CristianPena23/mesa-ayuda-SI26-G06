@@ -3,5 +3,10 @@ services:
     build: .
     env_file: .env
     ports:
-      - "${APP_PORT:-8000}:${APP_PORT:-8000}"
+      # Publicado SOLO en la IP de Tailscale del nodo (BIND_IP en .env).
+      # Un "8106:8106" publicaría en 0.0.0.0 y Docker se saltaría ufw (ver informe, Parte 3).
+      - "${BIND_IP}:${APP_PORT}:${APP_PORT}"
+    volumes:
+      # Certificado de la CA de MySQL para verificar el TLS hacia sg-db (solo lectura)
+      - ./certs/mysql-ca.pem:/certs/mysql-ca.pem:ro
     restart: unless-stopped

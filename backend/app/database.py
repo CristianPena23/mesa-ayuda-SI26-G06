@@ -1,7 +1,21 @@
+import logging
+import os
+
 import pymysql
 from pymysql.cursors import DictCursor
 
 from app import config
+
+logger = logging.getLogger("mesa_ayuda")
+
+# --- Cambio de despliegue (Parte 2/3, SI26-G06) -------------------------------
+# MySQL exige TLS (require_secure_transport=ON y app_mesa con REQUIRE SSL).
+# Si DB_SSL_CA apunta al certificado de la CA del servidor MySQL, la conexión va
+# cifrada y se verifica que el certificado del servidor esté firmado por esa CA.
+# check_hostname=False porque el certificado autogenerado de MySQL no lleva la IP
+# de Tailscale como nombre; la cadena de confianza sí se valida (CERT_REQUIRED).
+_SSL_CA = os.getenv("DB_SSL_CA")
+_SSL = {"ca": _SSL_CA, "check_hostname": False} if _SSL_CA else None
 
 
 def get_connection():
@@ -13,6 +27,7 @@ def get_connection():
         password=config.DB_PASSWORD,
         cursorclass=DictCursor,
         autocommit=True,
+        ssl=_SSL,
     )
 
 
@@ -39,6 +54,13 @@ def execute(sql, params=None):
 
 
 def init_db():
+    # --- Cambio de despliegue (Parte 2/3, SI26-G06) ---------------------------
+    # El usuario de la aplicación (app_mesa) solo tiene SELECT/INSERT/UPDATE/DELETE.
+    # Las tablas las crea el administrador con infra/db/schema.sql (separación de
+    # funciones). La creación desde la app solo se ejecuta si DB_INIT_SCHEMA=1.
+    if os.getenv("DB_INIT_SCHEMA", "0") != "1":
+        logger.info("init_db omitido: el esquema lo administra el DBA (infra/db/schema.sql)")
+        return
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
