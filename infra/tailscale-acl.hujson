@@ -1,0 +1,60 @@
+// Política de acceso de la tailnet — Grupo SI26-G06
+// Principio: mínimo privilegio. Todo lo que no está aquí queda DENEGADO.
+// "autogroup:member" = dispositivos de los integrantes (PCs de Cristian y Laura).
+// Los nodos-servidor se identifican por tag, no por usuario.
+{
+  // Quién puede asignar cada tag (solo administradores de la tailnet)
+  "tagOwners": {
+    "tag:db":       ["autogroup:admin"],
+    "tag:backend":  ["autogroup:admin"],
+    "tag:frontend": ["autogroup:admin"],
+    "tag:security": ["autogroup:admin"],
+  },
+
+  "acls": [
+    // Reverse proxy (Nginx) -> API del grupo
+    {"action": "accept", "src": ["tag:frontend"], "dst": ["tag:backend:8106"]},
+
+    // Aplicación -> MySQL del grupo
+    {"action": "accept", "src": ["tag:backend"], "dst": ["tag:db:33066"]},
+
+    // Agentes Wazuh -> manager (1514 eventos, 1515 registro de agentes)
+    {
+      "action": "accept",
+      "src":    ["tag:db", "tag:backend", "tag:frontend", "autogroup:member"],
+      "dst":    ["tag:security:1514,1515"],
+    },
+
+    // Administración SSH desde los PCs de los integrantes
+    {
+      "action": "accept",
+      "src":    ["autogroup:member"],
+      "dst":    ["tag:db:22", "tag:backend:22", "tag:frontend:22", "tag:security:22"],
+    },
+
+    // Dashboard Wazuh (443) y SonarQube (9000)
+    {"action": "accept", "src": ["autogroup:member"], "dst": ["tag:security:443,9000"]},
+
+    // Pruebas con Swagger y ZAP contra la API
+    {"action": "accept", "src": ["autogroup:member"], "dst": ["tag:backend:8106"]},
+  ],
+
+  // Pruebas automáticas: Tailscale rechaza guardar la política si alguna falla
+  "tests": [
+    {
+      "src":    "tag:frontend",
+      "accept": ["tag:backend:8106", "tag:security:1514"],
+      "deny":   ["tag:db:33066", "tag:db:22", "tag:backend:22"],
+    },
+    {
+      "src":    "tag:backend",
+      "accept": ["tag:db:33066", "tag:security:1515"],
+      "deny":   ["tag:frontend:22", "tag:security:443"],
+    },
+    {
+      "src":    "tag:db",
+      "accept": ["tag:security:1514"],
+      "deny":   ["tag:backend:8106", "tag:frontend:22"],
+    },
+  ],
+}
