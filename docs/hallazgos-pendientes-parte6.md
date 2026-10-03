@@ -33,4 +33,14 @@ En la Parte 6 cada uno se explica (causa raíz), se corrige y se verifica con he
 | H21 | `database.py` → `get_connection()` | Conexión a MySQL **sin TLS** | Las credenciales y los datos viajan sin cifrar a nivel de aplicación. |
 | H22 | `password_hash VARCHAR(64)` | Sugiere un SHA-256 sin sal (revisar `app/security.py`) | Los hashes rápidos y sin sal se rompen con diccionarios o tablas precalculadas. |
 
+## Hallazgos en el frontend y en los Dockerfile
+
+| # | Ubicación | Hallazgo | Por qué es un riesgo |
+|---|-----------|----------|----------------------|
+| H23 | Frontend (consola del navegador) | Tras el login se imprime **el token JWT completo** en la consola (`Sesión iniciada <usuario> eyJhbGci...`) | Cualquier extensión, script de terceros o persona con acceso al equipo puede copiar el token y suplantar al usuario. Los tokens nunca deben ir a logs. |
+| H24 | Frontend → formulario de ticket | La descripción "admite formato HTML" | Si se renderiza con `innerHTML` sin sanitizar, es **XSS almacenado**: un ticket malicioso ejecuta código en el navegador de quien lo abra (por ejemplo, un admin). La CSP `script-src 'self'` mitiga la ejecución, pero la causa raíz está en el código. |
+| H25 | `frontend/Dockerfile` | `npm run build --configuration production` no compila (npm se queda con la opción) | Calidad: el código entregado no se podía desplegar tal cual. Se corrigió con `npm run build -- --configuration production`. |
+| H26 | `frontend/nginx.conf` (base) | `autoindex on`, sin `server_tokens off`, sin encabezados de seguridad | Listado de directorios y fuga de versión. Corregido en la Parte 4. |
+| H27 | `backend/Dockerfile` | `EXPOSE 8000` no coincide con el puerto real de la app | Documentación engañosa del contenedor (menor). |
+
 > Pendiente: revisar `app/security.py`, `app/schemas.py` y `app/config.py` (algoritmo de hash, validación del JWT, expiración del token, validación de entradas). Verificar todo con SonarQube, Bearer y ZAP en la Parte 6.
