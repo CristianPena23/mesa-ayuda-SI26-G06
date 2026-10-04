@@ -1,6 +1,27 @@
+# Frontend + Cloudflare Tunnel — Grupo SI26-G06
+# Nginx NO publica ningún puerto en el host: solo el contenedor cloudflared lo alcanza por la
+# red interna "web". cloudflared abre una conexión SALIENTE hacia Cloudflare (quick tunnel),
+# así que sg-robayo-frontend no tiene ningún puerto de entrada hacia Internet.
 services:
   frontend:
     build: .
-    ports:
-      - "80:80"
     restart: unless-stopped
+    networks:
+      - web
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    # Quick tunnel: URL aleatoria https://<algo>.trycloudflare.com (cambia en cada reinicio).
+    command: tunnel --no-autoupdate --url http://frontend:80
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    networks:
+      - web
+
+networks:
+  web:
+    ipam:
+      config:
+        # Subred fija para que nginx solo confíe en CF-Connecting-IP si viene de aquí
+        - subnet: 172.30.66.0/24
