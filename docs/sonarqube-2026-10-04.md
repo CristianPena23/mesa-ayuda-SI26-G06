@@ -7,7 +7,7 @@ Notas: A = mejor, E = peor. Security/Reliability/Maintainability = cantidad de p
 
 | Fecha del analisis | Version | Security | Reliability | Maintainability | Hotspots | Lineas | Cobertura | Duplicacion |
 |---|---|---|---|---|---|---|---|---|
-| 2026-10-04T05:25:33+0000 | not provided | D (2) | A (0) | A (7) | 0 | 258 | 0.0% | 0.0% |
+| 2026-10-04T05:25:33+0000 | not provided | D (2) | D (1) | A (7) | 0 | 258 | 0.0% | 0.0% |
 | 2026-10-04T20:07:31+0000 | parte6-corregida | A (0) | A (0) | A (8) | 0 | 303 | 0.0% | 0.0% |
 | 2026-10-04T20:26:12+0000 | parte6-corregida | A (0) | A (0) | A (0) | 0 | 311 | 0.0% | 0.0% |
 

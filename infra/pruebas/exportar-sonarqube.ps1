@@ -26,7 +26,9 @@ function Nota($valor) {
     switch ([int][double]$valor) { 1 { "A" } 2 { "B" } 3 { "C" } 4 { "D" } 5 { "E" } default { "$valor" } }
 }
 
-$metricas = "security_rating,vulnerabilities,reliability_rating,bugs,sqale_rating,code_smells,security_hotspots,ncloc,coverage,duplicated_lines_density"
+# Se piden las metricas del modelo nuevo de SonarQube ("software quality", las que muestra el
+# panel) y las clasicas como respaldo, por si la version del servidor no tiene las nuevas.
+$metricas = "software_quality_security_rating,software_quality_security_issues,software_quality_reliability_rating,software_quality_reliability_issues,software_quality_maintainability_rating,software_quality_maintainability_issues,security_rating,vulnerabilities,reliability_rating,bugs,sqale_rating,code_smells,security_hotspots,ncloc,coverage,duplicated_lines_density"
 $fecha = Get-Date -Format "yyyy-MM-dd"
 $salida = Join-Path (Get-Location) "docs\sonarqube-$fecha.md"
 
@@ -62,7 +64,13 @@ foreach ($p in $Proyectos) {
         foreach ($k in $porMetrica.Keys) { $val[$k] = $porMetrica[$k][$i].value }
         $ver = $versiones[$fechas[$i]]; if (-not $ver) { $ver = "-" }
         $f = $fechas[$i]; if ($f -is [datetime]) { $f = $f.ToString("yyyy-MM-dd HH:mm") }
-        $md += "| $f | $ver | $(Nota $val['security_rating']) ($($val['vulnerabilities'])) | $(Nota $val['reliability_rating']) ($($val['bugs'])) | $(Nota $val['sqale_rating']) ($($val['code_smells'])) | $($val['security_hotspots']) | $($val['ncloc']) | $($val['coverage'])% | $($val['duplicated_lines_density'])% |"
+        $sr = $val['software_quality_security_rating'];        if ($null -eq $sr) { $sr = $val['security_rating'] }
+        $si = $val['software_quality_security_issues'];        if ($null -eq $si) { $si = $val['vulnerabilities'] }
+        $rr = $val['software_quality_reliability_rating'];     if ($null -eq $rr) { $rr = $val['reliability_rating'] }
+        $ri = $val['software_quality_reliability_issues'];     if ($null -eq $ri) { $ri = $val['bugs'] }
+        $mr = $val['software_quality_maintainability_rating']; if ($null -eq $mr) { $mr = $val['sqale_rating'] }
+        $mi = $val['software_quality_maintainability_issues']; if ($null -eq $mi) { $mi = $val['code_smells'] }
+        $md += "| $f | $ver | $(Nota $sr) ($si) | $(Nota $rr) ($ri) | $(Nota $mr) ($mi) | $($val['security_hotspots']) | $($val['ncloc']) | $($val['coverage'])% | $($val['duplicated_lines_density'])% |"
     }
     $md += ""
     $md += "Quality Gate actual: **$($gate.projectStatus.status)**"
