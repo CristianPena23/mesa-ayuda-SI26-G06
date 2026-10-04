@@ -1,0 +1,19 @@
+<!--
+  Respuesta activa - Grupo SI26-G06
+  Este bloque se AGREGA al ossec.conf del manager (dentro de <ossec_config>...</ossec_config>).
+  Cuando la regla nativa 5712 (sshd: multiples fallos de autenticacion, nivel 10) dispara,
+  el manager ordena al propio agente atacado ejecutar "firewall-drop", que inserta una regla
+  iptables que DESCARTA el trafico de la IP atacante durante 180 s. Pasado ese tiempo,
+  el bloqueo se retira solo.
+
+  - command: firewall-drop  -> script predefinido de Wazuh (iptables en Linux)
+  - location: local         -> se ejecuta en el agente que genero la alerta
+  - rules_id: 5712          -> regla nativa de fuerza bruta SSH
+  - timeout: 180            -> bloqueo temporal de 3 minutos
+-->
+<active-response>
+  <command>firewall-drop</command>
+  <location>local</location>
+  <rules_id>5712</rules_id>
+  <timeout>180</timeout>
+</active-response>

@@ -44,3 +44,25 @@ En la Parte 6 cada uno se explica (causa raíz), se corrige y se verifica con he
 | H27 | `backend/Dockerfile` | `EXPOSE 8000` no coincide con el puerto real de la app | Documentación engañosa del contenedor (menor). |
 
 > Pendiente: revisar `app/security.py`, `app/schemas.py` y `app/config.py` (algoritmo de hash, validación del JWT, expiración del token, validación de entradas). Verificar todo con SonarQube, Bearer y ZAP en la Parte 6.
+
+## Hallazgo nuevo detectado por SonarQube
+
+| # | Dónde | Qué pasa | Por qué es grave |
+|---|---|---|---|
+| H28 | `backend/app` (línea 37 según SonarQube, decodificación del JWT) | El token JWT se lee **sin verificar su firma** | Cualquiera puede fabricar un token con `rol=admin` y la API lo acepta, sin conocer `JWT_SECRET`. Es suplantación total. |
+
+## Análisis estático con SonarQube Community (versión base)
+
+Resultado del primer análisis (código v-base, antes de corregir):
+
+| Proyecto | Seguridad | Confiabilidad | Mantenibilidad | Quality Gate |
+|---|---|---|---|---|
+| mesa-ayuda-backend (Python, 258 líneas) | D (2) | D (1) | A (7) | Passed |
+| mesa-ayuda-frontend (TypeScript/HTML, 416 líneas) | E (1, Blocker) | C (7) | A (3) | Passed |
+
+Correspondencia con los hallazgos manuales:
+
+- Detectados por SonarQube: H22 (hash débil), H24 (sanitización de Angular desactivada → XSS) y H28 (JWT sin verificar firma, que no estaba en la lista manual).
+- No detectados: H12/H13 (inyección SQL), H14 (`/debug/config`), H15 (contraseñas en logs), H16 (CORS), H17/H18 (IDOR), H19, y todo lo de configuración (`.env`, Dockerfile, compose). La edición Community no hace análisis de flujo de datos (taint analysis), que es lo que detecta inyecciones, y no revisa archivos de configuración ni lógica de autorización.
+- El Quality Gate "Sonar way" marcó **Passed** con vulnerabilidades abiertas porque sus condiciones aplican solo al código nuevo, y en el primer análisis no hay período de comparación. "Passed" no equivale a "seguro".
+- Conclusión: el análisis estático es una capa más, no reemplaza la revisión manual ni las pruebas dinámicas.

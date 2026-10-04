@@ -1,0 +1,19 @@
+<!--
+  Decoder personalizado - Grupo SI26-G06
+  Se instala en el manager:  /var/ossec/etc/decoders/local_decoder.xml
+  Decodifica las lineas de auditoria que escribe el backend en /var/log/mesa_ayuda/app.log:
+    2026-10-03 23:53:32,531 mesa_ayuda AUTH_FAIL src_ip=181.x.x.x path=/auth/login
+  Al pre-decodificar, Wazuh toma "mesa_ayuda" como hostname; el mensaje que ve el
+  decoder empieza en "AUTH_FAIL", por eso el prematch engancha ahi.
+    - el padre engancha la linea por el texto "AUTH_FAIL"
+    - el hijo extrae la IP de origen (srcip) para que la regla cuente fallos por IP
+-->
+<decoder name="mesa_ayuda">
+  <prematch>AUTH_FAIL src_ip=</prematch>
+</decoder>
+
+<decoder name="mesa_ayuda_srcip">
+  <parent>mesa_ayuda</parent>
+  <regex>src_ip=(\S+) path=(\S+)</regex>
+  <order>srcip,url</order>
+</decoder>

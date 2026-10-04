@@ -1,7 +1,8 @@
 import logging
 import os
+from logging.handlers import RotatingFileHandler
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import config
@@ -12,11 +13,53 @@ from app.security import crear_token, hash_password, usuario_actual, verify_pass
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("mesa_ayuda")
 
+# --- Auditoría de autenticación (D2, SI26-G06) -------------------------------
+# Registra los intentos de login FALLIDOS en /app/logs/app.log (montado en el host
+# como /var/log/mesa_ayuda/app.log). El agente Wazuh de sg-backend lee ese archivo.
+# Se registra la IP real del cliente (X-Real-IP que pone Nginx) y NUNCA la contraseña.
+_audit_logger = logging.getLogger("mesa_ayuda_audit")
+_audit_logger.setLevel(logging.INFO)
+_audit_logger.propagate = False
+try:
+    os.makedirs("/app/logs", exist_ok=True)
+    _handler = RotatingFileHandler("/app/logs/app.log", maxBytes=1_000_000, backupCount=3)
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    _audit_logger.addHandler(_handler)
+except Exception as exc:  # pragma: no cover
+    logger.warning(f"No se pudo abrir el log de auditoria: {exc}")
+
+
+def _ip_cliente(request: Request) -> str:
+    # Nginx entrega la IP real en X-Real-IP (que a su vez saca de CF-Connecting-IP,
+    # y solo confía en ese encabezado si viene de la red interna de Docker).
+    ip = request.headers.get("x-real-ip")
+    if not ip:
+        xff = request.headers.get("x-forwarded-for", "")
+        ip = xff.split(",")[0].strip() if xff else ""
+    if not ip and request.client:
+        ip = request.client.host
+    return ip or "-"
+
+
 app = FastAPI(
     title="Mesa de Ayuda API",
-    description="API de la Mesa de Ayuda — Seguridad Informática UMNG 2026-II",
+    description="API de la Mesa de Ayuda - Seguridad Informatica UMNG 2026-II",
     version="2.0.0",
 )
+
+
+@app.middleware("http")
+async def auditoria_autenticacion(request: Request, call_next):
+    response = await call_next(request)
+    try:
+        if request.url.path == "/auth/login" and response.status_code == 401:
+            _audit_logger.info(
+                f'mesa_ayuda AUTH_FAIL src_ip={_ip_cliente(request)} path={request.url.path}'
+            )
+    except Exception:  # pragma: no cover
+        pass
+    return response
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -52,9 +95,9 @@ def debug_config():
     }
 
 
-# ---------------------------------------------------------------- Autenticación
+# ---------------------------------------------------------------- Autenticacion
 
-@app.post("/auth/registro", tags=["Autenticación"])
+@app.post("/auth/registro", tags=["Autenticacion"])
 def registro(datos: RegistroIn):
     logger.info(f"Registro de usuario: {datos.username} / {datos.password} / {datos.email}")
     existe = fetch_one("SELECT id FROM usuarios WHERE username = %s", (datos.username,))
@@ -69,7 +112,7 @@ def registro(datos: RegistroIn):
     )
 
 
-@app.post("/auth/login", tags=["Autenticación"])
+@app.post("/auth/login", tags=["Autenticacion"])
 def login(datos: LoginIn):
     query = (
         f"SELECT id, username, rol, password_hash FROM usuarios "
@@ -78,7 +121,7 @@ def login(datos: LoginIn):
     usuario = fetch_one(query)
     if not usuario or not verify_password(datos.password, usuario["password_hash"]):
         logger.warning(f"Login fallido para {datos.username} con clave {datos.password}")
-        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+        raise HTTPException(status_code=401, detail="Credenciales invalidas")
     return {"access_token": crear_token(usuario), "token_type": "bearer", "rol": usuario["rol"]}
 
 
@@ -127,9 +170,9 @@ def cambiar_estado(ticket_id: int, datos: EstadoIn, usuario: dict = Depends(usua
     return fetch_one("SELECT * FROM tickets WHERE id = %s", (ticket_id,))
 
 
-# ---------------------------------------------------------------- Administración
+# ---------------------------------------------------------------- Administracion
 
-@app.get("/admin/usuarios", tags=["Administración"])
+@app.get("/admin/usuarios", tags=["Administracion"])
 def listar_usuarios(usuario: dict = Depends(usuario_actual)):
     if usuario["rol"] != "admin":
         raise HTTPException(status_code=403, detail="Solo administradores")
