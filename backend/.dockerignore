@@ -1,0 +1,15 @@
+# Parte 6 (corrige H6): nada de esto debe entrar a la imagen.
+.env
+*.env
+env_del_examen.txt
+*.pem
+*.key
+.git
+.gitignore
+.DS_Store
+__pycache__/
+*.pyc
+wazuh/
+sonar-project.properties
+.scannerwork/
+certs/

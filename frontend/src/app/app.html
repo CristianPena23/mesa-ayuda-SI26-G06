@@ -108,7 +108,7 @@
         <thead>
           <tr class="text-left text-600">
             <th class="p-2">ID</th><th class="p-2">Usuario</th><th class="p-2">Correo</th>
-            <th class="p-2">Rol</th><th class="p-2">Hash</th>
+            <th class="p-2">Rol</th>
           </tr>
         </thead>
         <tbody>
@@ -117,7 +117,6 @@
             <td class="p-2">{{ u.username }}</td>
             <td class="p-2">{{ u.email }}</td>
             <td class="p-2"><p-tag [value]="u.rol" /></td>
-            <td class="p-2 font-mono text-sm">{{ u.password_hash }}</td>
           </tr>
         </tbody>
       </table>

@@ -1,5 +1,5 @@
-import { Component, OnInit } from '@angular/core';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { Component, OnInit, SecurityContext } from '@angular/core';
+import { DomSanitizer } from '@angular/platform-browser';
 import { MessageService } from 'primeng/api';
 import { ApiService, Ticket, Usuario } from './services/api.service';
 
@@ -27,12 +27,12 @@ export class App implements OnInit {
   nuevoTitulo = '';
   nuevaDescripcion = '';
   nuevaPrioridad = 'media';
-  prioridades = ['baja', 'media', 'alta'];
-  estados = ['abierto', 'en_progreso', 'cerrado'];
+  readonly prioridades = ['baja', 'media', 'alta'];
+  readonly estados = ['abierto', 'en_progreso', 'cerrado'];
 
   // Detalle
   ticket: Ticket | null = null;
-  descripcionHtml: SafeHtml = '';
+  descripcionHtml = '';
 
   // Admin
   usuarios: Usuario[] = [];
@@ -41,8 +41,8 @@ export class App implements OnInit {
 
   constructor(
     public api: ApiService,
-    private messages: MessageService,
-    private sanitizer: DomSanitizer
+    private readonly messages: MessageService,
+    private readonly sanitizer: DomSanitizer
   ) {}
 
   ngOnInit(): void {
@@ -137,7 +137,12 @@ export class App implements OnInit {
     this.api.verTicket(id).subscribe({
       next: (t) => {
         this.ticket = t;
-        this.descripcionHtml = this.sanitizer.bypassSecurityTrustHtml(t.descripcion);
+        // Parte 6 (corrige H24 - XSS almacenado): antes se usaba
+        // bypassSecurityTrustHtml, que APAGA la proteccion de Angular y ejecutaba
+        // cualquier <script> o <img onerror=...> guardado en la descripcion.
+        // Ahora se sanitiza: se conserva el formato basico (negrita, listas...) y
+        // se elimina todo lo que pueda ejecutar codigo.
+        this.descripcionHtml = this.sanitizer.sanitize(SecurityContext.HTML, t.descripcion) ?? '';
         this.vista = 'detalle';
       },
       error: () => this.error('Ticket no encontrado'),
@@ -156,7 +161,9 @@ export class App implements OnInit {
   }
 
   severidad(prioridad: string): 'danger' | 'warn' | 'info' {
-    return prioridad === 'alta' ? 'danger' : prioridad === 'media' ? 'warn' : 'info';
+    if (prioridad === 'alta') return 'danger';
+    if (prioridad === 'media') return 'warn';
+    return 'info';
   }
 
   // ------------------------------------------------------------ Admin

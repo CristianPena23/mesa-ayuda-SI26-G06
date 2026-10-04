@@ -1,4 +1,6 @@
-fastapi
-uvicorn
-pymysql
-pyjwt
+# Parte 6 (corrige H9): versiones FIJAS para que cada build sea reproducible y
+# se pueda auditar con pip-audit / Dependabot.
+fastapi==0.115.6
+uvicorn==0.34.0
+PyMySQL==1.1.1
+PyJWT==2.10.1

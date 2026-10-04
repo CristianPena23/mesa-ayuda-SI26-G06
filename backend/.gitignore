@@ -1,3 +1,14 @@
 __pycache__/
 venv/
 *.pyc
+
+# Parte 6: secretos y archivos locales que nunca deben subirse
+.env
+*.env
+env_del_examen.txt
+*.pem
+*.key
+certs/
+.DS_Store
+.scannerwork/
+wazuh/

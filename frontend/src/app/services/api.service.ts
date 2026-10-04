@@ -41,7 +41,7 @@ export class ApiService {
     localStorage.setItem('token', res.access_token);
     localStorage.setItem('rol', res.rol);
     localStorage.setItem('username', username);
-    console.log('Sesión iniciada', username, res.access_token);
+    
   }
 
   cerrarSesion(): void {
