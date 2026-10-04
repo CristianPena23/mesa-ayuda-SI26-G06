@@ -103,9 +103,6 @@ def health():
 
 @app.post("/auth/registro", tags=["Autenticacion"], responses={400: {"description": "El usuario ya existe"}})
 def registro(datos: RegistroIn):
-    # Parte 6 (corrige H15): nunca se registra la contrasena (ni el correo, dato
-    # personal - Ley 1581). Solo el nombre de usuario.
-    logger.info("Registro de usuario: %s", datos.username)
     existe = fetch_one("SELECT id FROM usuarios WHERE username = %s", (datos.username,))
     if existe:
         raise HTTPException(status_code=400, detail="El usuario ya existe")
@@ -113,6 +110,10 @@ def registro(datos: RegistroIn):
         "INSERT INTO usuarios (username, email, password_hash) VALUES (%s, %s, %s)",
         (datos.username, datos.email, hash_password(datos.password)),
     )
+    # Parte 6 (corrige H15 y hallazgo de Bearer CWE-532): el log no lleva la
+    # contrasena, ni el correo, ni el nombre de usuario (datos personales, Ley 1581).
+    # Solo el id interno, que sirve para auditar sin exponer a la persona.
+    logger.info("Registro de usuario nuevo id=%s", nuevo_id)
     return fetch_one(
         "SELECT id, username, email, rol FROM usuarios WHERE id = %s", (nuevo_id,)
     )
@@ -134,9 +135,11 @@ def login(datos: LoginIn):
     # respuesta tarde lo mismo y no se pueda adivinar que usuarios existen.
     hash_guardado = usuario["password_hash"] if usuario else _HASH_RELLENO
     if not verify_password(datos.password, hash_guardado) or not usuario:
-        # Parte 6 (corrige H15): sin contrasena en el log. %r evita inyeccion de
-        # lineas falsas en el log (saltos de linea en el usuario).
-        logger.warning("Login fallido para %r", datos.username)
+        # Parte 6 (corrige H15 y hallazgo de Bearer CWE-532): ni la contrasena ni
+        # el usuario intentado van al log (a veces la gente escribe su clave en el
+        # campo de usuario). La IP de origen ya la registra el log de auditoria
+        # (AUTH_FAIL), que es lo que Wazuh usa para detectar fuerza bruta.
+        logger.warning("Login fallido")
         raise HTTPException(status_code=401, detail="Credenciales invalidas")
     return {"access_token": crear_token(usuario), "token_type": "bearer", "rol": usuario["rol"]}
 
