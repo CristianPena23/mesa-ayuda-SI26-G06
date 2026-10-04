@@ -101,7 +101,7 @@ def health():
 
 # ---------------------------------------------------------------- Autenticacion
 
-@app.post("/auth/registro", tags=["Autenticacion"])
+@app.post("/auth/registro", tags=["Autenticacion"], responses={400: {"description": "El usuario ya existe"}})
 def registro(datos: RegistroIn):
     # Parte 6 (corrige H15): nunca se registra la contrasena (ni el correo, dato
     # personal - Ley 1581). Solo el nombre de usuario.
@@ -121,7 +121,7 @@ def registro(datos: RegistroIn):
 _HASH_RELLENO = hash_password("relleno-para-igualar-tiempos")
 
 
-@app.post("/auth/login", tags=["Autenticacion"])
+@app.post("/auth/login", tags=["Autenticacion"], responses={401: {"description": "Credenciales invalidas"}})
 def login(datos: LoginIn):
     # Parte 6 (corrige H12): consulta PARAMETRIZADA. El %s lo rellena el driver
     # (PyMySQL) escapando el valor, asi que "admin' OR '1'='1" se busca como un
@@ -144,6 +144,7 @@ def login(datos: LoginIn):
 # ---------------------------------------------------------------- Tickets
 
 ESTADOS_VALIDOS = {"abierto", "en_progreso", "cerrado"}
+SQL_TICKET_POR_ID = "SELECT * FROM tickets WHERE id = %s"
 
 
 def _ticket_autorizado(ticket_id: int, usuario: dict):
@@ -151,7 +152,7 @@ def _ticket_autorizado(ticket_id: int, usuario: dict):
     usuario o si el usuario es admin. Si no, responde igual que si no existiera
     (404), para no revelar que ese numero de ticket existe."""
     if usuario["rol"] == "admin":
-        return fetch_one("SELECT * FROM tickets WHERE id = %s", (ticket_id,))
+        return fetch_one(SQL_TICKET_POR_ID, (ticket_id,))
     return fetch_one(
         "SELECT * FROM tickets WHERE id = %s AND usuario_id = %s",
         (ticket_id, usuario["id"]),
@@ -165,7 +166,7 @@ def mis_tickets(usuario: dict = Depends(usuario_actual)):
     )
 
 
-@app.get("/tickets/buscar", tags=["Tickets"])
+@app.get("/tickets/buscar", tags=["Tickets"], responses={400: {"description": "Busqueda demasiado larga"}})
 def buscar_tickets(q: str, usuario: dict = Depends(usuario_actual)):
     # Parte 6 (corrige H13): consulta PARAMETRIZADA; un "' UNION SELECT ..." ya no
     # puede leer otras tablas. Se escapan % y _ para que se busquen literalmente.
@@ -178,7 +179,7 @@ def buscar_tickets(q: str, usuario: dict = Depends(usuario_actual)):
     )
 
 
-@app.get("/tickets/{ticket_id}", tags=["Tickets"])
+@app.get("/tickets/{ticket_id}", tags=["Tickets"], responses={404: {"description": "Ticket no encontrado o ajeno"}})
 def ver_ticket(ticket_id: int, usuario: dict = Depends(usuario_actual)):
     ticket = _ticket_autorizado(ticket_id, usuario)
     if not ticket:
@@ -193,10 +194,17 @@ def crear_ticket(datos: TicketIn, usuario: dict = Depends(usuario_actual)):
         "VALUES (%s, %s, %s, %s)",
         (datos.titulo, datos.descripcion, datos.prioridad, usuario["id"]),
     )
-    return fetch_one("SELECT * FROM tickets WHERE id = %s", (nuevo_id,))
+    return fetch_one(SQL_TICKET_POR_ID, (nuevo_id,))
 
 
-@app.patch("/tickets/{ticket_id}/estado", tags=["Tickets"])
+@app.patch(
+    "/tickets/{ticket_id}/estado",
+    tags=["Tickets"],
+    responses={
+        400: {"description": "Estado no valido"},
+        404: {"description": "Ticket no encontrado o ajeno"},
+    },
+)
 def cambiar_estado(ticket_id: int, datos: EstadoIn, usuario: dict = Depends(usuario_actual)):
     if datos.estado not in ESTADOS_VALIDOS:
         raise HTTPException(status_code=400, detail="Estado no valido")
@@ -204,12 +212,12 @@ def cambiar_estado(ticket_id: int, datos: EstadoIn, usuario: dict = Depends(usua
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
     execute("UPDATE tickets SET estado = %s WHERE id = %s", (datos.estado, ticket_id))
-    return fetch_one("SELECT * FROM tickets WHERE id = %s", (ticket_id,))
+    return fetch_one(SQL_TICKET_POR_ID, (ticket_id,))
 
 
 # ---------------------------------------------------------------- Administracion
 
-@app.get("/admin/usuarios", tags=["Administracion"])
+@app.get("/admin/usuarios", tags=["Administracion"], responses={403: {"description": "Solo administradores"}})
 def listar_usuarios(usuario: dict = Depends(usuario_actual)):
     if usuario["rol"] != "admin":
         raise HTTPException(status_code=403, detail="Solo administradores")
