@@ -93,3 +93,51 @@ Análisis con `sonar.projectVersion=parte6-corregida`, comparado contra la versi
 - El Quality Gate del backend queda en **Failed por una sola condición: cobertura de pruebas 0 % < 80 %** sobre el código nuevo. El proyecto no tiene pruebas unitarias automatizadas (ni la versión base ni la corregida). Es una carencia real que SonarQube detecta correctamente; se deja como recomendación para el pipeline DevSecOps. Las pruebas de seguridad se hicieron de forma dinámica contra la app desplegada (`infra/pruebas/pruebas-parte6.ps1`, 11/11 OK).
 - Los 7 problemas de confiabilidad del frontend son de accesibilidad (campos `input` sin `id`/`label` asociados), no de seguridad.
 - Lectura: el "Passed" del primer análisis no significaba "seguro" (no había código nuevo que evaluar), y este "Failed" no significa "inseguro": señala la falta de pruebas automatizadas.
+
+## Bearer CLI sobre el backend (SAST, 6.3)
+
+Informes en `docs/`: `bearer-backend-base-2026-10-04.html`, `bearer-backend-corregido-2026-10-04.html`, `bearer-backend-final-2026-10-04.html`.
+
+| Ejecución | Críticos | Medios | Detalle |
+|---|---|---|---|
+| Base (`v-base`) | 4 | 3 | JWT sin verificar firma (CWE-347), 3 "SQL sin sanear" en `database.py` (CWE-89), contraseñas en logs ×2 (CWE-532), MD5 (CWE-328) |
+| Corregido | 3 | 2 | Los 3 de SQL son falsos positivos; los logs ya no tenían la clave pero sí el nombre de usuario |
+| Final | 0 | 0 | Logs solo con el id interno; 4 falsos positivos revisados y justificados en `backend/bearer.ignore` |
+
+- Bearer confirmó H28 (JWT), H22 (MD5) y H15 (claves en logs), y aportó un hallazgo que la revisión manual pasó por alto: tras la primera corrección los logs todavía guardaban el **nombre de usuario** (dato personal, Ley 1581; además, en un login fallido la persona a veces escribe su clave en el campo de usuario). Se corrigió registrando solo el id interno, que es la remediación que propone la propia regla.
+- Los 3 hallazgos de SQL apuntan a `cur.execute(sql, params)` dentro de las funciones auxiliares de `database.py`: Bearer no puede saber de dónde viene `sql`. En el código corregido todas las llamadas usan una consulta constante con `%s` y los datos van en `params`; las pruebas de inyección (`infra/pruebas/pruebas-parte6.ps1`) lo confirman. Se marcaron como falsos positivos con su justificación, autor y fecha (`bearer ignore add --false-positive`), no se ocultaron.
+- Limitación observada: en la versión base Bearer marcó las mismas tres funciones de `database.py`, pero **no** señaló la inyección real (los f-strings de `main.py`, H12 y H13). Las herramientas apoyan la revisión manual; no la reemplazan.
+
+## OWASP ZAP baseline contra la URL pública (DAST, 6.3)
+
+Informes en `docs/`: `zap-baseline-antes-2026-10-04.html`, `zap-baseline-despues-2026-10-04.html`, `zap-baseline-final-2026-10-04.html`.
+
+- **Antes:** la versión `v-base` del frontend se levantó de forma temporal en el PC de un integrante, publicada con un túnel rápido de Cloudflare propio, y se escaneó. Solo se corrigió el error de compilación H25 para poder construirla; el `nginx.conf` era el original (sin encabezados de seguridad). Al terminar, los contenedores y el túnel se eliminaron.
+- **Después / final:** la aplicación desplegada (Nginx endurecido de la Parte 4 + correcciones de la Parte 6), por su túnel de Cloudflare.
+
+| Escaneo | WARN | PASS | FAIL |
+|---|---|---|---|
+| Antes (base) | 11 | 56 | 0 |
+| Después (Partes 4 y 6 desplegadas) | 7 | 60 | 0 |
+| Final (Angular actualizado) | 6 | 61 | 0 |
+
+| Alerta | Antes | Final | Comentario |
+|---|---|---|---|
+| CSP Header Not Set | WARN | PASS | `Content-Security-Policy` en Nginx |
+| Missing Anti-clickjacking Header | WARN | PASS | `X-Frame-Options` / `frame-ancestors` |
+| X-Content-Type-Options Missing | WARN | PASS | `nosniff` |
+| Strict-Transport-Security Not Set | WARN | PASS | HSTS |
+| Permissions Policy Not Set | WARN | PASS | `Permissions-Policy` |
+| Vulnerable JS Library (`@angular/core` 21.2.6) | WARN | PASS | Ver H30 |
+| CSP: style-src unsafe-inline | — | WARN | Aparece porque ahora hay CSP. Riesgo aceptado: PrimeNG inyecta estilos en línea; los scripts sí están restringidos (`script-src 'self'`, sin `unsafe-inline`) |
+| Dangerous JS Functions (`bypassSecurityTrustHtml(`) | WARN | WARN | Falso positivo en el final: es la definición del método dentro de Angular. El código propio ya no lo llama (`findstr` en `frontend/src` solo halla el comentario de la corrección) y la prueba en navegador muestra el `onerror` eliminado |
+| Cache-control / Storable content / COEP / Modern Web App | WARN | WARN | Informativas o de riesgo bajo sobre caché de estáticos y aislamiento entre orígenes; recomendación, no se tocan |
+| HTTP Server Response Header | PASS | PASS | En la base pasa solo porque Cloudflare reemplaza el encabezado `Server`; la corrección propia es `server_tokens off` (H26) |
+
+## Hallazgo nuevo por análisis de dependencias
+
+| # | Dónde | Qué pasaba | Corrección |
+|---|---|---|---|
+| H30 | `frontend/package-lock.json` | Angular 21.2.6 con 7 vulnerabilidades publicadas (`npm audit`: 4 altas, 3 medias). Cuatro son **bypass del sanitizador de Angular (XSS)** (GHSA-58w9-8g37-x9v5, GHSA-f3m7-gqxr-g87x, GHSA-jj27-h5hq-8x99, GHSA-hh8m-fm6v-7cvg), justo el mecanismo del que depende la corrección de H24; las demás son DoS y fugas en `HttpTransferCache`. ZAP lo reportó como *Vulnerable JS Library*. | `npm update` dentro de los rangos de `package.json` → todo Angular en **21.2.25**; `npm audit --omit=dev`: **0 vulnerabilidades**. Lección: corregir el código propio no basta si la librería en la que se confía tiene fallos conocidos. |
+
+Notas de mantenimiento (no son vulnerabilidades): `@primeng/themes` está *deprecated* (migrar a `@primeuix/themes`) y `@angular/animations` está *deprecated* en favor de `animate.enter`/`animate.leave`.
