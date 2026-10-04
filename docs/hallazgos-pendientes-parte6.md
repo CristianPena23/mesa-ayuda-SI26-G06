@@ -66,3 +66,15 @@ Correspondencia con los hallazgos manuales:
 - No detectados: H12/H13 (inyección SQL), H14 (`/debug/config`), H15 (contraseñas en logs), H16 (CORS), H17/H18 (IDOR), H19, y todo lo de configuración (`.env`, Dockerfile, compose). La edición Community no hace análisis de flujo de datos (taint analysis), que es lo que detecta inyecciones, y no revisa archivos de configuración ni lógica de autorización.
 - El Quality Gate "Sonar way" marcó **Passed** con vulnerabilidades abiertas porque sus condiciones aplican solo al código nuevo, y en el primer análisis no hay período de comparación. "Passed" no equivale a "seguro".
 - Conclusión: el análisis estático es una capa más, no reemplaza la revisión manual ni las pruebas dinámicas.
+
+## Error de configuración propio detectado al validar (Parte 5 → corregido en Parte 6)
+
+| # | Dónde | Qué pasaba | Corrección |
+|---|---|---|---|
+| H29 | `infra/wazuh/agent.conf` (FIM del backend) | El filtro era `restrict="docker-compose.yml$\|\.env$"`. `restrict` usa *sregex* de Wazuh, donde `\` es un carácter literal, así que el `.env` **nunca** coincidía: el archivo con los secretos no se vigilaba aunque la configuración "pareciera" correcta. Solo `docker-compose.yml` generaba alertas. | Se cambió a `restrict="docker-compose.yml$\|.env$"`. Verificado: al rotar el `JWT_SECRET` (04/10/2026 14:37) Wazuh generó la regla 550 en modo `realtime` sobre `/home/sgadmin/backend/.env`, con `syscheck.diff` truncado por `nodiff` (el secreto no queda en el SIEM). |
+
+Lección: configurar un control no basta; hay que **probar que detecta**. Este punto ciego solo apareció al intentar producir la alerta a propósito.
+
+## Incidente operativo durante el despliegue
+
+Al encender la VM `sg-robayo-security`, Docker arrancó antes de que Tailscale asignara la IP `100.91.88.2`, y el manager y el dashboard no pudieron publicar sus puertos (1514, 1515, 443): todos los agentes quedaron *Disconnected*. Se recrearon los contenedores y se agregó `/etc/systemd/system/docker.service.d/esperar-tailscale.conf` para que Docker espere a `tailscaled` y a la IP de `tailscale0`. Publicar en la IP de Tailscale (y no en `0.0.0.0`) sigue siendo lo correcto, porque Docker se salta `ufw`.

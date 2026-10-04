@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # H6: solo se copia el codigo de la app (el .dockerignore excluye .env, .git, etc.).
 COPY app ./app
+# Los archivos quedan de root y solo de LECTURA para appuser: la app puede leer su
+# codigo pero no modificarlo. chmod corrige permisos restrictivos del origen (700).
+RUN chmod -R a+rX,go-w /app/app
 
 # H5: usuario SIN privilegios. Si alguien explota la API, no es root en el contenedor.
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin appuser \
