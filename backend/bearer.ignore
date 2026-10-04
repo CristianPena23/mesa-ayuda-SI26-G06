@@ -16,5 +16,11 @@
     "comment": "database.py siempre ejecuta SQL parametrizado (%s); todas las llamadas desde main.py pasan una consulta constante y los datos del usuario van en params. Verificado con pruebas de inyeccion en infra/pruebas/pruebas-parte6.ps1",
     "false_positive": true,
     "ignored_at": "2026-10-04T21:31:10Z"
+  },
+  "f8b0a883ccdb966f5ec24536664ac0a6_0": {
+    "author": "Cristian Pena",
+    "comment": "Se registra solo el id interno autoincremental del usuario (no es dato personal), que es justo la remediacion que propone la regla: usar un identificador no sensible. El usuario, el correo y la clave ya no van al log.",
+    "false_positive": true,
+    "ignored_at": "2026-10-04T21:38:36Z"
   }
 }
