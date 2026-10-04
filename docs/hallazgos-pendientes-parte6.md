@@ -78,3 +78,18 @@ Lección: configurar un control no basta; hay que **probar que detecta**. Este p
 ## Incidente operativo durante el despliegue
 
 Al encender la VM `sg-robayo-security`, Docker arrancó antes de que Tailscale asignara la IP `100.91.88.2`, y el manager y el dashboard no pudieron publicar sus puertos (1514, 1515, 443): todos los agentes quedaron *Disconnected*. Se recrearon los contenedores y se agregó `/etc/systemd/system/docker.service.d/esperar-tailscale.conf` para que Docker espere a `tailscaled` y a la IP de `tailscale0`. Publicar en la IP de Tailscale (y no en `0.0.0.0`) sigue siendo lo correcto, porque Docker se salta `ufw`.
+
+## Análisis estático con SonarQube Community (versión corregida, Parte 6)
+
+Análisis con `sonar.projectVersion=parte6-corregida`, comparado contra la versión base como "código nuevo":
+
+| Proyecto | Seguridad | Confiabilidad | Mantenibilidad | Quality Gate |
+|---|---|---|---|---|
+| mesa-ayuda-backend | D (2) → **A (0)** | D (1) → **A (0)** | A (7) → **A (0)** | Failed (solo cobertura) |
+| mesa-ayuda-frontend | E (1 Blocker) → **A (0)** | C (7) → C (7) | A (3) → A (1) | Passed |
+
+- Desaparecieron los tres problemas de seguridad que SonarQube sí detectaba: H22 (hash débil), H28 (JWT sin verificar firma) y H24 (sanitización de Angular desactivada).
+- El primer análisis tras corregir generó 3 problemas nuevos de mantenibilidad (dos `HTTPException` 400 sin documentar y una consulta SQL repetida). Se corrigieron junto con los 5 heredados de la versión base: cada endpoint declara sus respuestas de error con `responses=` y la consulta repetida es la constante `SQL_TICKET_POR_ID`. Resultado: **0 issues** en el backend.
+- El Quality Gate del backend queda en **Failed por una sola condición: cobertura de pruebas 0 % < 80 %** sobre el código nuevo. El proyecto no tiene pruebas unitarias automatizadas (ni la versión base ni la corregida). Es una carencia real que SonarQube detecta correctamente; se deja como recomendación para el pipeline DevSecOps. Las pruebas de seguridad se hicieron de forma dinámica contra la app desplegada (`infra/pruebas/pruebas-parte6.ps1`, 11/11 OK).
+- Los 7 problemas de confiabilidad del frontend son de accesibilidad (campos `input` sin `id`/`label` asociados), no de seguridad.
+- Lectura: el "Passed" del primer análisis no significaba "seguro" (no había código nuevo que evaluar), y este "Failed" no significa "inseguro": señala la falta de pruebas automatizadas.
