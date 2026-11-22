@@ -50,6 +50,18 @@ El código original está marcado con el tag v-base y las correcciones van encim
 Entre los hallazgos corregidos: inyección SQL en login y búsqueda, JWT sin verificación de firma, contraseñas con MD5, IDOR en tickets, XSS almacenado, endpoint /debug/config expuesto y secretos en el repositorio.
 Secretos en el repositorio: borrarlos en un commit nuevo no basta porque quedan en el historial. Se rotaron (nuevo JWT_SECRET de 64 caracteres y nueva clave de base de datos) y se comprobó que los anteriores ya no funcionan.
 Verificación: el script infra/pruebas/pruebas-parte6.ps1 repite contra la aplicación desplegada los 11 ataques que funcionaban en la versión original; en la versión corregida todos quedan bloqueados y la aplicación sigue funcionando.
+Hallazgos corregidos y OWASP Top 10:2021
+Hallazgo	OWASP Top 10:2021	CWE	Estado
+Inyección SQL en login y búsqueda	A03 Injection	CWE-89	Corregido y verificado
+JWT sin verificación de firma, con secreto filtrado	A07 Identification and Authentication Failures / A02 Cryptographic Failures	CWE-347	Corregido y verificado
+Contraseñas con MD5 sin sal (ahora scrypt)	A02 Cryptographic Failures	CWE-328	Corregido y verificado
+IDOR al ver y cerrar tickets de otros usuarios	A01 Broken Access Control	CWE-639	Corregido y verificado
+XSS almacenado en la descripción del ticket	A03 Injection	CWE-79	Corregido y verificado
+Endpoint /debug/config expone configuración	A05 Security Misconfiguration	CWE-215	Corregido y verificado
+Secretos en el repositorio (rotados)	A05 Security Misconfiguration / A07	CWE-798	Corregido y verificado
+
+La lista completa de los 30 hallazgos, con severidad y commit de cada corrección, está en docs/.
+
 Resultados antes y después
 Herramienta	Antes	Después
 SonarQube, backend	D en seguridad y confiabilidad	A
